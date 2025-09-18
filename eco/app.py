@@ -7,11 +7,16 @@ app = Flask(__name__)
 
 
 
-# Allow multiple origins (e.g., localhost for development and production domain)
-CORS(app, origins=[
-    "http://localhost:3000",       # Local development (React, etc.)
-    "https://eco-shield-green.web.app/"     # Hosted frontend domain
-])
+# Allow multiple origins (e.g., localhost for development and production domain
+CORS(app, resources={
+    r"/*": {
+        "origins": [
+            "http://localhost:3000",
+            "https://eco-shield-green.web.app"
+        ]
+    }
+})
+
 SCAM_FOLDER = "eco/scam/"
 app.config["SCAM_FOLDER"] = SCAM_FOLDER
 
