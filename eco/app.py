@@ -46,32 +46,28 @@ def singup():
     return jsonify({"message": "Signup successful"}), 201
 
     
-@app.route('/login',methods=['POST'])#useke hisb se 
+@app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
     email = data['email']
     password = data['password']
-    
+
     eco = sqlite3.connect("eco.db")
-    cursor = eco.cursor() 
-    
-    cursor.execute("SELECT password FROM User WHERE email = ?", email)
+    cursor = eco.cursor()
+    cursor.execute("SELECT password FROM User WHERE email = ?", (email,))
     row = cursor.fetchone()
-    
-    eco.commit()
     eco.close()
-    
-    if len(row) != 1:
-        return jsonify({"message": "Email not found"}), 404
-    elif ph.verify(row[0], password):
-        eco = sqlite3.connect("eco.db")
-        cursor = eco.cursor()
-        login_id = cursor.execute("SELECT user_id FROM User WHERE email = ?", email)
-        eco.commit()
-        eco.close()
-        return jsonify({"massage": "Login succesfully!"}), 200
-    else:
-        return jsonify({"message": "Password incorrect"}), 404
+
+    if not row:
+        return jsonify({"error": "Email not found"}), 404
+
+    try:
+        if ph.verify(row[0], password):
+            return jsonify({"message": "Password correct"}), 200
+        else:
+            return jsonify({"error": "Password incorrect"}), 401
+    except:
+        return jsonify({"error": "Password incorrect"}), 401
 
 @app.route('/Scam_Report',methods=['POST'])
 def scam():
