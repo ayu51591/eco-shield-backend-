@@ -28,7 +28,8 @@ def init_db():
             contact TEXT,
             email TEXT UNIQUE,
             password TEXT,
-            dob TEXT
+            dob TEXT,
+            is_active BOOLEAN DEFAULT 1
         )
     """)
     eco.commit()
@@ -56,6 +57,7 @@ def signup():
         eco.commit()
         return jsonify({"message": "Signup successful"}), 201
     except sqlite3.IntegrityError:
+
         return jsonify({"error": "Email already registered"}), 409
     finally:
         eco.close()
@@ -84,6 +86,23 @@ def login():
         pass
 
     return jsonify({"error": "Password incorrect"}), 401
+
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    eco = sqlite3.connect("eco.db")
+    cursor = eco.cursor()
+    cursor.execute("SELECT name, email, contact FROM User")
+    rows = cursor.fetchall()
+    eco.close()
+
+    users = []
+    for row in rows:
+        users.append({
+            "name": row[0],
+            "email": row[1],
+            "contact": row[2]
+        })
+    return jsonify(users), 200
 
 if __name__ == "__main__":
     app.run(debug=True)
