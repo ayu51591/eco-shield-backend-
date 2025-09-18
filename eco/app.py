@@ -1,13 +1,11 @@
-from flask import request, Flask, jsonify
-import sqlite3, os
-from argon2 import PasswordHasher 
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
+import sqlite3
+from argon2 import PasswordHasher
+
 app = Flask(__name__)
 
-
-
-# Allow multiple origins (e.g., localhost for development and production domain
+# Allow multiple frontend origins
 CORS(app, resources={
     r"/*": {
         "origins": [
@@ -17,35 +15,52 @@ CORS(app, resources={
     }
 })
 
-SCAM_FOLDER = "eco/scam/"
-app.config["SCAM_FOLDER"] = SCAM_FOLDER
-
-global login_id
-global hashed
 ph = PasswordHasher()
 
-@app.route('/signup', methods=['POST'])#useke hisb se 
-def singup():
+# --- Create users table if not exists ---
+def init_db():
+    eco = sqlite3.connect("eco.db")
+    cursor = eco.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS User(
+            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            contact TEXT,
+            email TEXT UNIQUE,
+            password TEXT,
+            dob TEXT
+        )
+    """)
+    eco.commit()
+    eco.close()
+
+init_db()
+
+# --- Signup Route ---
+@app.route('/signup', methods=['POST'])
+def signup():
     data = request.get_json()
     name = data['name']
     contact = data['contact']
     email = data['email']
-    password = ph.hash(data['password'])
     dob = data['dob']
-    
+    hashed_password = ph.hash(data['password'])
+
     eco = sqlite3.connect("eco.db")
     cursor = eco.cursor()
-     
-    cursor.execute("CREATE TABLE IF NOT EXISTS User(user_id INTEGER PRIMARY KEY AUTOINCREMENT, name VARCHAR(15), contact VARCHAR(15), email VARCHAR(50), password VARCHAR(255), dob VARCHAR(20))")
-    
-    cursor.execute("INSERT INTO User(name, contact, email, password, dob) VALUES (?, ?, ?, ?, ?)",(name, contact, email, password, dob)) 
-    
-    eco.commit() 
-    eco.close()
+    try:
+        cursor.execute(
+            "INSERT INTO User(name, contact, email, password, dob) VALUES (?, ?, ?, ?, ?)",
+            (name, contact, email, hashed_password, dob)
+        )
+        eco.commit()
+        return jsonify({"message": "Signup successful"}), 201
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Email already registered"}), 409
+    finally:
+        eco.close()
 
-    return jsonify({"message": "Signup successful"}), 201
-
-    
+# --- Login Route ---
 @app.route('/login', methods=['POST'])
 def login():
     data = request.get_json()
@@ -54,32 +69,21 @@ def login():
 
     eco = sqlite3.connect("eco.db")
     cursor = eco.cursor()
-    cursor.execute("SELECT password FROM User WHERE email = ?", (email,))
+    cursor.execute("SELECT user_id, password FROM User WHERE email = ?", (email,))
     row = cursor.fetchone()
     eco.close()
 
     if not row:
         return jsonify({"error": "Email not found"}), 404
 
+    user_id, stored_hash = row
     try:
-        if ph.verify(row[0], password):
-            return jsonify({"message": "Password correct"}), 200
-        else:
-            return jsonify({"error": "Password incorrect"}), 401
+        if ph.verify(stored_hash, password):
+            return jsonify({"message": "Login successful", "user_id": user_id}), 200
     except:
-        return jsonify({"error": "Password incorrect"}), 401
+        pass
 
-@app.route('/Scam_Report',methods=['POST'])
-def scam():
-    data = request.get_json()
-    file = request.files["image"]
-    file_path = os.path.join(app.config["SCAM_FOLDER"], file.filename)#when u local host path is to be set then 
-    file.save(file_path)
-    title = data["title"]
-    discription = data["detail"]
-    
-    eco = sqlite3.connect("eco.db")
-    cursor = eco.cursor()
-     
-    cursor.execute("CREATE TABLE IF NOT EXISTS Scam_reports (report_id INTEGER PRIMARY KEY AUTOENCREMENT,  victim INTEGER, title TEXT, discription TEXT, image TEXT, FOREIGN KEY (user_id) RFREFENCES User(user_id)  ")
-    
+    return jsonify({"error": "Password incorrect"}), 401
+
+if __name__ == "__main__":
+    app.run(debug=True)
